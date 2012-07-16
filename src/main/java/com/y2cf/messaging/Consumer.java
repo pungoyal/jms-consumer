@@ -13,13 +13,18 @@ public class Consumer {
         InitialContext initialContext = null;
         try {
             initialContext = getContext();
-            Queue queue = (Queue) initialContext.lookup("/queue/test.queue");
-            System.out.println("Got the queue");
 
             ConnectionFactory connectionFactory = (ConnectionFactory) initialContext.lookup("/ConnectionFactory");
+            System.out.println("Got the connection factory");
+
             connection = connectionFactory.createConnection();
+            System.out.println("Got the connection");
 
             Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+            System.out.println("Got the session");
+
+            Queue queue = (Queue) initialContext.lookup("/queues/test.queue");
+            System.out.println("Got the queue");
 
             System.out.println("Sending a test message to the queue");
             MessageProducer producer = session.createProducer(queue);
