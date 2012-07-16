@@ -1,85 +1,61 @@
 package com.y2cf.messaging;
 
 
+import org.hornetq.api.core.TransportConfiguration;
+import org.hornetq.api.jms.HornetQJMSClient;
+import org.hornetq.api.jms.JMSFactoryType;
+import org.hornetq.integration.transports.netty.NettyConnectorFactory;
+import org.hornetq.jms.client.HornetQConnectionFactory;
+
 import javax.jms.*;
-import javax.naming.Context;
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
-import java.io.FileInputStream;
-import java.util.Properties;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.hornetq.core.remoting.impl.netty.TransportConstants.HOST_PROP_NAME;
+import static org.hornetq.core.remoting.impl.netty.TransportConstants.PORT_PROP_NAME;
 
 public class Consumer {
-    public boolean anotherRun(String[] args) throws Exception {
-        final Properties properties = new Properties();
-        properties.put(Context.INITIAL_CONTEXT_FACTORY, "org.jboss.naming.remote.client.InitialContextFactory");
-        properties.put(Context.PROVIDER_URL, "remote://localhost:4447");
-        properties.put(Context.SECURITY_PRINCIPAL, "foo");
-        properties.put(Context.SECURITY_CREDENTIALS, "bar");
-
-        Context context = new InitialContext(properties);
-        System.out.println("********************************************initialized context");
-        ConnectionFactory connectionFactory = (ConnectionFactory) context.lookup("java:/ConnectionFactory");
-        System.out.println("********************************************got the connection factory");
-
-        Destination destination = (Destination) context.lookup("jms/queue/test.queue");
-        System.out.println("\"********************************************got the queue");
-
-        context.close();
-        return true;
-    }
-
-    public boolean run(String[] args) throws NamingException, JMSException {
+    public void anotherRun(String[] args) throws Exception {
         Connection connection = null;
-        InitialContext initialContext = null;
         try {
-            initialContext = getContext();
+            Queue queue = HornetQJMSClient.createQueue("/queues/aircel");
 
-            ConnectionFactory connectionFactory = (ConnectionFactory) initialContext.lookup("/ConnectionFactory");
-            System.out.println("Got the connection factory");
+            Map<String, Object> connectionParams = new HashMap<String, Object>();
+            connectionParams.put(PORT_PROP_NAME, 5445);
+            connectionParams.put(HOST_PROP_NAME, "localhost");
 
+            TransportConfiguration transportConfiguration = new TransportConfiguration(NettyConnectorFactory.class.getName(),
+                    connectionParams);
+
+            HornetQConnectionFactory connectionFactory = HornetQJMSClient.createConnectionFactoryWithoutHA(JMSFactoryType.QUEUE_CF, transportConfiguration);
             connection = connectionFactory.createConnection();
-            System.out.println("Got the connection");
-
             Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-            System.out.println("Got the session");
 
-            Queue queue = (Queue) initialContext.lookup("/queues/test.queue");
-            System.out.println("Got the queue");
-
-            System.out.println("Sending a test message to the queue");
-            MessageProducer producer = session.createProducer(queue);
-            TextMessage message = session.createTextMessage("This is a text message");
-            producer.send(message);
-
-            MessageConsumer messageConsumer = session.createConsumer(queue);
+//            MessageProducer producer = session.createProducer(queue);
+//            TextMessage message = session.createTextMessage("This is a text message");
+//            System.out.println("Sent message: " + message.getText());
+//            producer.send(message);
+//
+//            connection.start();
+//            MessageConsumer messageConsumer = session.createConsumer(queue);
+//            TextMessage messageReceived = (TextMessage) messageConsumer.receive(5000);
+//            System.out.println("Received message: " + messageReceived.getText());
 
             connection.start();
-
-            TextMessage messageReceived = (TextMessage) messageConsumer.receive(5000);
-
-            System.out.println("Received message: " + messageReceived.getText());
-        } catch (Exception e) {
-            System.out.println("**********************");
-            e.printStackTrace();
-            System.out.println("**********************");
-        } finally {
-            if (initialContext != null) {
-                initialContext.close();
+            MessageConsumer messageConsumer = session.createConsumer(queue);
+            while (true) {
+                TextMessage messageReceived = (TextMessage) messageConsumer.receive(5000);
+                if (messageReceived != null) {
+                    System.out.println("Received message: " + messageReceived.getText());
+                }
             }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
             if (connection != null) {
                 connection.close();
             }
         }
-        return true;
-    }
-
-    protected InitialContext getContext() throws Exception {
-        FileInputStream inputStream = new FileInputStream("consumer/client-jndi.properties");
-
-        Properties properties = new Properties();
-        properties.load(inputStream);
-        inputStream.close();
-
-        return new InitialContext(properties);
     }
 }
